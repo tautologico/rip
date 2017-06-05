@@ -1,3 +1,4 @@
+pub mod sexp;
 pub mod parser;
 
 pub struct SchemeObject {
