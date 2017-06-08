@@ -16,6 +16,7 @@ pub struct ReadSexpError {
     col: usize,
     kind: ReadSexpErrorKind
 }
+
 pub struct ParserState {
     chars: Vec<char>,
     ix: usize,
@@ -68,7 +69,16 @@ impl ParserState {
         self.ix -= 1;
         if self.chars[self.ix] == '\n' {
             self.line -= 1;
-            self.col = 0; // TODO find the right column number
+
+            // go back to the previous line to find out the column number
+            let mut cs = self.ix - 1;
+            while cs > 0 && self.chars[cs] != '\n' {
+                cs -= 1;
+            }
+            self.col = self.ix - cs;
+            if self.chars[cs] == '\n' {
+                self.col -= 1;
+            }
         } else {
             self.col -= 1;
         }
@@ -208,7 +218,8 @@ fn test_read_str() {
 
     let mut ps2 = ParserState::new(String::from("\"tapioca"));
 
-    assert_eq!(read_str(&mut ps2), Err(ReadSexpError{ line: 0, col: 8, kind: ReadSexpErrorKind::UnclosedString}));
+    assert_eq!(read_str(&mut ps2),
+               Err(ReadSexpError{ line: 0, col: 8, kind: ReadSexpErrorKind::UnclosedString}));
 }
 
 #[test]
@@ -223,9 +234,41 @@ fn test_skip_whitespace() {
 
     ps1.skip_whitespace();
     assert_eq!(ps1.peek(), Some('b'));
+    assert_eq!(ps1.line, 1);
+    assert_eq!(ps1.col, 0);
 
     let mut ps2 = ParserState::new(String::from(" \n \n \n \n "));
 
     ps2.skip_whitespace();
     assert_eq!(ps2.peek(), None);
+    assert_eq!(ps2.line, 4);
+    assert_eq!(ps2.col, 1);
+}
+
+#[test]
+fn test_backtrack() {
+    let mut ps1 = ParserState::new(String::from("   bamboleo\nbambolea"));
+
+    ps1.skip_whitespace();
+    assert_eq!(ps1.next(), Some('b'));
+    assert_eq!(ps1.next(), Some('a'));
+    assert_eq!(ps1.next(), Some('m'));
+    assert_eq!(ps1.next(), Some('b'));
+    assert_eq!(ps1.next(), Some('o'));
+    assert_eq!(ps1.next(), Some('l'));
+    assert_eq!(ps1.next(), Some('e'));
+    assert_eq!(ps1.next(), Some('o'));
+
+    assert_eq!(ps1.line, 0);
+    assert_eq!(ps1.col, 11);
+
+    ps1.skip_whitespace();
+    assert_eq!(ps1.peek(), Some('b'));
+    assert_eq!(ps1.line, 1);
+    assert_eq!(ps1.col, 0);
+
+    ps1.backtrack();
+    assert_eq!(ps1.peek(), Some('\n'));
+    assert_eq!(ps1.line, 0);
+    assert_eq!(ps1.col, 11);
 }
