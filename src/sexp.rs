@@ -5,7 +5,9 @@ pub type SymbolHandle = usize;
 pub enum Sexp {
     Number(i64),
     Str(String),
-    Symbol(String),
+    Symbol(SymbolHandle),
     Bool(bool),
+    Char(char),
+    Vector(Vec<Sexp>),
     List(Vec<Sexp>)
 }

@@ -7,7 +7,8 @@ use sexp::SymbolHandle;
 pub enum ReadSexpErrorKind {
     UnclosedString,
     UnexpectedEOF,
-    UnexpectedChar
+    UnexpectedChar(char),
+    ExpectedHash
 }
 
 #[derive(PartialEq, Eq, Hash, Debug)]
@@ -85,6 +86,13 @@ impl ParserState {
     }
 }
 
+// the type for read results
+type ReadResult = Result<Sexp, ReadSexpError>;
+
+fn sexp_error_current_location(ps: &ParserState, kind: ReadSexpErrorKind) -> ReadSexpError {
+    ReadSexpError { line: ps.line, col: ps.col, kind: kind }
+}
+
 #[test]
 fn test_peek() {
     let ps1 = ParserState::new(String::from("Armoir"));
@@ -148,7 +156,7 @@ fn test_symbol_table() {
     assert_eq!(symtbl.intern(String::from("loop")), 2);
 }
 
-fn read_str(ps: &mut ParserState) -> Result<Sexp, ReadSexpError> {
+fn read_str(ps: &mut ParserState) -> ReadResult {
     assert!(ps.next() == Some('"'), "Unexpected start of string");
     let mut res = String::new();
     let mut mc = ps.next();
@@ -165,11 +173,86 @@ fn read_str(ps: &mut ParserState) -> Result<Sexp, ReadSexpError> {
     }
 }
 
-fn quoted_sexp(s: Sexp) -> Sexp {
+fn quoted_sexp(s: Sexp, symtbl: &mut SymbolTable) -> Sexp {
     let mut lst : Vec<Sexp> = Vec::new();
-    lst.push(Sexp::Symbol(String::from("quote")));
+    lst.push(Sexp::Symbol(symtbl.intern(String::from("quote"))));
     lst.push(s);
     Sexp::List(lst)
+}
+
+fn id_symbol_char(c: char) -> bool {
+    match c {
+        '!' | '$' | '%' | '&' | '*' | '/' | ':' | '<' | '='
+        | '>' | '?' | '^' | '_' | '~' => true,
+        _ => false
+    }
+}
+
+fn id_first_char(c: char) -> bool {
+    c.is_alphabetic() || id_symbol_char(c)
+}
+
+// TODO include the "peculiar id"
+fn id_char(c: char) -> bool {
+    c.is_digit(10) || id_first_char(c) || c == '+' || c == '-' || c == '.' || c == '@'
+}
+
+fn read_identifier(ps: &mut ParserState, symtbl: &mut SymbolTable) -> ReadResult {
+    let mut idstr = String::new();
+    match ps.next() {
+        None => Err(sexp_error_current_location(ps, ReadSexpErrorKind::UnexpectedEOF)),
+        Some(c) => {
+            if !id_first_char(c) {
+                return Err(sexp_error_current_location(ps, ReadSexpErrorKind::UnexpectedChar(c)));
+            }
+
+            let mut ch = c;
+            while id_char(ch) {
+                idstr.push(ch);
+                match ps.next() {
+                    None => break,
+                    Some(c2) => ch = c2
+                }
+            }
+            Ok(Sexp::Symbol(symtbl.intern(idstr)))
+        }
+    }
+}
+
+fn read_char(ps: &mut ParserState) -> ReadResult {
+    match ps.next() {
+        None => Err(sexp_error_current_location(ps, ReadSexpErrorKind::UnexpectedEOF)),
+        Some(c) => Ok(Sexp::Char(c))
+    }
+}
+
+fn read_vector(ps: &mut ParserState, symtbl: &mut SymbolTable) -> ReadResult {
+    let v : Vec<Sexp> = Vec::new();
+    Ok(Sexp::Vector(v))  // TODO implement
+}
+
+fn read_number_or_error(ps: &mut ParserState, c: char) -> ReadResult {
+    Ok(Sexp::Number(0))  // TODO implement
+}
+
+fn read_hash(ps: &mut ParserState, symtbl: &mut SymbolTable) -> ReadResult {
+    match ps.next() {
+        None => Err(sexp_error_current_location(ps, ReadSexpErrorKind::UnexpectedEOF)),
+        Some(c) => {
+            if c != '#' {
+                return Err(sexp_error_current_location(ps, ReadSexpErrorKind::ExpectedHash));
+            }
+
+            match ps.next() {
+                None => Err(sexp_error_current_location(ps, ReadSexpErrorKind::UnexpectedEOF)),
+                Some('t') => Ok(Sexp::Bool(true)),
+                Some('f') => Ok(Sexp::Bool(false)),
+                Some('\\') => read_char(ps),
+                Some('(') => read_vector(ps, symtbl),
+                Some(ch) => read_number_or_error(ps, ch)
+            }
+        }
+    }
 }
 
 //fn read_atom(ps: &mut ParserState) -> Sexp {
@@ -224,8 +307,11 @@ fn test_read_str() {
 
 #[test]
 fn test_quoted_sexp() {
-    assert_eq!(quoted_sexp(Sexp::Symbol(String::from("alamo"))),
-               Sexp::List(vec!(Sexp::Symbol(String::from("quote")), Sexp::Symbol(String::from("alamo")))));
+    let mut symtbl = SymbolTable::new();
+    let quote_sym = symtbl.intern(String::from("quote"));
+    let alamo_sym = symtbl.intern(String::from("alamo"));
+    assert_eq!(quoted_sexp(Sexp::Symbol(alamo_sym), &mut symtbl),
+               Sexp::List(vec!(Sexp::Symbol(quote_sym), Sexp::Symbol(alamo_sym))));
 }
 
 #[test]
@@ -271,4 +357,18 @@ fn test_backtrack() {
     assert_eq!(ps1.peek(), Some('\n'));
     assert_eq!(ps1.line, 0);
     assert_eq!(ps1.col, 11);
+}
+
+#[cfg(test)]
+fn symbol_from_str(s: &str, st: &mut SymbolTable) -> Sexp {
+    Sexp::Symbol(st.intern(String::from(s)))
+}
+
+#[test]
+fn test_read_id() {
+    let mut ps1 = ParserState::new(String::from("batraqueo"));
+    let mut symtbl = SymbolTable::new();
+
+    assert_eq!(read_identifier(&mut ps1, &mut symtbl),
+               Ok(symbol_from_str("batraqueo", &mut symtbl)));
 }
