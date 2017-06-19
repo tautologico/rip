@@ -219,6 +219,7 @@ fn read_identifier(ps: &mut ParserState, symtbl: &mut SymbolTable) -> ReadResult
     }
 }
 
+// TODO support for #\space and #\newline
 fn read_char(ps: &mut ParserState) -> ReadResult {
     match ps.next() {
         None => Err(sexp_error_current_location(ps, ReadSexpErrorKind::UnexpectedEOF)),
@@ -231,7 +232,7 @@ fn read_vector(ps: &mut ParserState, symtbl: &mut SymbolTable) -> ReadResult {
     Ok(Sexp::Vector(v))  // TODO implement
 }
 
-fn read_number_or_error(ps: &mut ParserState, c: char) -> ReadResult {
+fn read_prefix_number_or_error(ps: &mut ParserState, c: char) -> ReadResult {
     Ok(Sexp::Number(0))  // TODO implement
 }
 
@@ -249,7 +250,7 @@ fn read_hash(ps: &mut ParserState, symtbl: &mut SymbolTable) -> ReadResult {
                 Some('f') => Ok(Sexp::Bool(false)),
                 Some('\\') => read_char(ps),
                 Some('(') => read_vector(ps, symtbl),
-                Some(ch) => read_number_or_error(ps, ch)
+                Some(ch) => read_prefix_number_or_error(ps, ch)
             }
         }
     }
@@ -371,4 +372,16 @@ fn test_read_id() {
 
     assert_eq!(read_identifier(&mut ps1, &mut symtbl),
                Ok(symbol_from_str("batraqueo", &mut symtbl)));
+}
+
+#[test]
+fn test_read_hash() {
+    let mut ps1 = ParserState::new(String::from("#t #f #\\A"));
+    let mut symtbl = SymbolTable::new();
+
+    assert_eq!(read_hash(&mut ps1, &mut symtbl), Ok(Sexp::Bool(true)));
+    ps1.skip_whitespace();
+    assert_eq!(read_hash(&mut ps1, &mut symtbl), Ok(Sexp::Bool(false)));
+    ps1.skip_whitespace();
+    assert_eq!(read_hash(&mut ps1, &mut symtbl), Ok(Sexp::Char('A')));
 }
