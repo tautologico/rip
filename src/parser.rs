@@ -3,11 +3,17 @@ use std::collections::HashMap;
 use sexp::Sexp;
 use sexp::SymbolHandle;
 
-#[derive(PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct Loc {
     line: usize,
     col: usize,
     pos: usize
+}
+
+impl Loc {
+    pub fn zero() -> Loc {
+        Loc { line: 0, col: 0, pos: 0 }
+    }
 }
 
 #[derive(PartialEq, Eq, Hash, Debug)]
@@ -23,7 +29,8 @@ pub enum SexpValue {
 
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub struct SynSexp {
-    loc: Loc,
+    start: Loc,
+    end: Loc,
     val: SexpValue
 }
 
@@ -44,7 +51,6 @@ pub struct ReadSexpError {
 
 pub struct ParserState {
     chars: Vec<char>,
-    tok_start: Loc,
     ix: usize,
     line: usize,
     col: usize
@@ -52,12 +58,11 @@ pub struct ParserState {
 
 impl ParserState {
     pub fn new(s: String) -> Self {
-        ParserState { chars: s.chars().collect(), ix: 0, line: 0, col: 0,
-                      tok_start: Loc { line: 0, col: 0, pos: 0 } }
+        ParserState { chars: s.chars().collect(), ix: 0, line: 0, col: 0 }
     }
 
     pub fn peek(&self) -> Option<char> {
-        if self.ix < self.chars.len()  {
+        if self.ix < self.chars.len() {
             Some(self.chars[self.ix])
         } else {
             None
@@ -86,6 +91,12 @@ impl ParserState {
         }
     }
 
+    pub fn skip_comment(&mut self) {
+        while self.ix < self.chars.len() && self.chars[self.ix] != '\n' {
+            self.advance_ix();
+        }
+    }
+
     pub fn skip_whitespace(&mut self) {
         while self.ix < self.chars.len() && self.chars[self.ix].is_whitespace() {
             self.advance_ix();
@@ -111,9 +122,13 @@ impl ParserState {
         }
     }
 
-    fn make_sexp(&self, val: SexpValue) -> SynSexp {
-        let loc = Loc { line: self.line, col: self.col, pos: self.ix };
-        SynSexp { loc: loc, val: val }
+    fn current_loc(&self) -> Loc {
+        Loc { line: self.line, col: self.col, pos: self.ix }
+    }
+
+    fn make_sexp(&self, val: SexpValue, start: Loc) -> SynSexp {
+        let endloc = Loc { line: self.line, col: self.col, pos: self.ix };
+        SynSexp { start: start, end: endloc, val: val }
     }
 }
 
@@ -188,6 +203,7 @@ fn test_symbol_table() {
 }
 
 fn read_str(ps: &mut ParserState) -> ReadResult {
+    let sloc = ps.current_loc();
     assert!(ps.next() == Some('"'), "Unexpected start of string");
     let mut res = String::new();
     let mut mc = ps.next();
@@ -200,7 +216,7 @@ fn read_str(ps: &mut ParserState) -> ReadResult {
     if mc == None || mc == Some('\n') {
         Err(ReadSexpError { line: ps.line, col: ps.col, kind: ReadSexpErrorKind::UnclosedString })
     } else {
-        Ok(ps.make_sexp(SexpValue::Str(res)))
+        Ok(ps.make_sexp(SexpValue::Str(res), sloc))
     }
 }
 
@@ -224,12 +240,12 @@ fn id_first_char(c: char) -> bool {
     c.is_alphabetic() || id_symbol_char(c)
 }
 
-// TODO include the "peculiar id"
 fn id_char(c: char) -> bool {
     c.is_digit(10) || id_first_char(c) || c == '+' || c == '-' || c == '.' || c == '@'
 }
 
 fn read_identifier(ps: &mut ParserState, symtbl: &mut SymbolTable) -> ReadResult {
+    let sloc = ps.current_loc();
     let mut idstr = String::new();
     match ps.next() {
         None => Err(sexp_error_current_location(ps, ReadSexpErrorKind::UnexpectedEOF)),
@@ -246,29 +262,30 @@ fn read_identifier(ps: &mut ParserState, symtbl: &mut SymbolTable) -> ReadResult
                     Some(c2) => ch = c2
                 }
             }
-            Ok(ps.make_sexp(SexpValue::Symbol(symtbl.intern(idstr))))
+            Ok(ps.make_sexp(SexpValue::Symbol(symtbl.intern(idstr)), sloc))
         }
     }
 }
 
 // TODO support for #\space and #\newline
-fn read_char(ps: &mut ParserState) -> ReadResult {
+fn read_char(ps: &mut ParserState, sloc: Loc) -> ReadResult {
     match ps.next() {
         None => Err(sexp_error_current_location(ps, ReadSexpErrorKind::UnexpectedEOF)),
-        Some(c) => Ok(ps.make_sexp(SexpValue::Char(c)))
+        Some(c) => Ok(ps.make_sexp(SexpValue::Char(c), sloc))
     }
 }
 
-fn read_vector(ps: &mut ParserState, symtbl: &mut SymbolTable) -> ReadResult {
+fn read_vector(ps: &mut ParserState, symtbl: &mut SymbolTable, sloc: Loc) -> ReadResult {
     let v : Vec<SynSexp> = Vec::new();
-    Ok(ps.make_sexp(SexpValue::Vector(v)))  // TODO implement
+    Ok(ps.make_sexp(SexpValue::Vector(v), sloc))  // TODO implement
 }
 
-fn read_prefix_number_or_error(ps: &mut ParserState, c: char) -> ReadResult {
-    Ok(ps.make_sexp(SexpValue::Number(String::from("0"))))  // TODO implement
+fn read_prefix_number_or_error(ps: &mut ParserState, c: char, sloc: Loc) -> ReadResult {
+    Ok(ps.make_sexp(SexpValue::Number(String::from("0")), sloc))  // TODO implement
 }
 
 fn read_hash(ps: &mut ParserState, symtbl: &mut SymbolTable) -> ReadResult {
+    let sloc = ps.current_loc();
     match ps.next() {
         None => Err(sexp_error_current_location(ps, ReadSexpErrorKind::UnexpectedEOF)),
         Some(c) => {
@@ -278,60 +295,76 @@ fn read_hash(ps: &mut ParserState, symtbl: &mut SymbolTable) -> ReadResult {
 
             match ps.next() {
                 None => Err(sexp_error_current_location(ps, ReadSexpErrorKind::UnexpectedEOF)),
-                Some('t') => Ok(ps.make_sexp(SexpValue::Bool(true))),
-                Some('f') => Ok(ps.make_sexp(SexpValue::Bool(false))),
-                Some('\\') => read_char(ps),
-                Some('(') => read_vector(ps, symtbl),
-                Some(ch) => read_prefix_number_or_error(ps, ch)
+                Some('t') => Ok(ps.make_sexp(SexpValue::Bool(true), sloc)),
+                Some('f') => Ok(ps.make_sexp(SexpValue::Bool(false), sloc)),
+                Some('\\') => read_char(ps, sloc),
+                Some('(') => read_vector(ps, symtbl, sloc),
+                Some(ch) => read_prefix_number_or_error(ps, ch, sloc)
             }
         }
     }
 }
 
-//fn read_atom(ps: &mut ParserState) -> Sexp {
-//    match ps.peek() {
-//        '#' => read_hash(ps),
-//        '"' => read_str(ps),
-//        '\'' => quoted_sexp()
-//    }
-//}
-//
-//fn read_sexp(ps: &mut ParserState) -> Sexp {
-//    match ps.peek() {
-//        '(' => read_list(ps),
-//        _ => read_atom(ps)
-//    }
-//}
-//
-//pub fn parse_atom(ps: &mut ParserState) -> Sexp {
-//    match ps.peek() {
-//        '#' => parse_hash(ps),
-//        '"' => parse_string(ps),
-//        '\'' => quoted_sexp()
-//    }
-//}
-//
-//// parses a top-level sexp (a list)
-//// assumes the opening parenthesis was already consumed
-//pub fn parse_sexp(ps: &mut ParserState) -> Sexp {
-//    let mut res : Vec<Sexp> = Vec::new();
-//
-//    while ps.peek() != ')' {
-//        match ps.peek() {
-//            '(' => { ps.next(); res.push(parse_sexp(ps)) },
-//            _ => res.push(parse_atom(ps))
-//        }
-//    }
-//
-//    Sexp::List(res)
-//}
+fn read_number(ps: &mut ParserState) -> ReadResult {
+    let sloc = ps.current_loc();
+    let mut nstr = String::new();
+    match ps.next() {
+        None => Err(sexp_error_current_location(ps, ReadSexpErrorKind::UnexpectedEOF)),
+        Some(c) => {
+            let mut ch = c;
+            while ch.is_numeric() || ch == '.' {
+                nstr.push(ch);
+                match ps.next() {
+                    None => break,
+                    Some(c2) => ch = c2
+                }
+            }
+            if ch.is_numeric() || ch == '.' {
+                Ok(ps.make_sexp(SexpValue::Number(nstr), sloc))
+            } else {
+                Err(sexp_error_current_location(ps, ReadSexpErrorKind::UnexpectedChar(ch)))
+            }
+        }
+    }
+}
+
+fn read_quoted(ps: &mut ParserState, symtbl: &mut SymbolTable) -> ReadResult {
+    let sloc = ps.current_loc();
+    read_sexp(ps, symtbl).and_then(|s| {
+        let mut v : Vec<SynSexp> = Vec::new();
+        v.push(SynSexp { start: sloc.clone(), end: sloc.clone(),
+                         val: SexpValue::Symbol(symtbl.intern(String::from("quote"))) });
+        let eloc = s.end.clone();
+        v.push(s);
+        Ok(SynSexp { start: sloc, end: eloc, val: SexpValue::List(v) })
+    })
+}
+
+pub fn read_sexp(ps: &mut ParserState, symtbl: &mut SymbolTable) -> ReadResult {
+    match ps.peek() {
+        //Some('(') => read_list(ps, symtbl),
+        Some('#') => read_hash(ps, symtbl),
+        Some('\'') => read_quoted(ps, symtbl),
+        Some(c) => {
+            if id_first_char(c) {
+                read_identifier(ps, symtbl)
+            } else if c.is_digit(10) {
+                read_number(ps)
+            } else {
+                Err(sexp_error_current_location(ps, ReadSexpErrorKind::UnexpectedChar(c)))
+            }
+        },
+        None => Err(sexp_error_current_location(ps, ReadSexpErrorKind::UnexpectedEOF))
+    }
+}
 
 #[test]
 fn test_read_str() {
     let mut ps1 = ParserState::new(String::from("\"Alamo hapsbar hammyn\""));
 
     assert_eq!(read_str(&mut ps1),
-               Ok(SynSexp { loc: Loc { line: 0, col: 22, pos: 22 },
+               Ok(SynSexp { start: Loc::zero(),
+                            end: Loc { line: 0, col: 22, pos: 22 },
                             val: SexpValue::Str(String::from("Alamo hapsbar hammyn")) } ));
 
     let mut ps2 = ParserState::new(String::from("\"tapioca"));
@@ -405,7 +438,8 @@ fn test_read_id() {
     let mut symtbl = SymbolTable::new();
 
     assert_eq!(read_identifier(&mut ps1, &mut symtbl),
-               Ok(SynSexp { loc: Loc { line: 0, col: 9, pos: 9 },
+               Ok(SynSexp { start: Loc::zero(),
+                            end: Loc { line: 0, col: 9, pos: 9 },
                             val: symbol_from_str("batraqueo", &mut symtbl) } ));
 }
 
@@ -419,4 +453,14 @@ fn test_read_hash() {
     //assert_eq!(read_hash(&mut ps1, &mut symtbl), Ok(Sexp::Bool(false)));
     //ps1.skip_whitespace();
     //assert_eq!(read_hash(&mut ps1, &mut symtbl), Ok(Sexp::Char('A')));
+}
+
+#[test]
+fn test_read_sexp() {
+    let mut ps1 = ParserState::new(String::from("1234"));
+    let mut symtbl = SymbolTable::new();
+
+    assert_eq!(read_sexp(&mut ps1, &mut symtbl),
+               Ok(SynSexp { start: Loc::zero(), end: Loc { line: 0, col: 4, pos: 4 },
+                            val: SexpValue::Number(String::from("1234")) }));
 }
