@@ -151,6 +151,7 @@ impl ParserState {
         assert!( open == Some('"'), "read_string_literal called, expected double quotes" );
 
         let mut res = String::new();
+        res.push(open.unwrap());
         let mut mc = self.next();
 
         while mc != None && mc != Some('"') && mc != Some('\n') {
@@ -308,32 +309,6 @@ fn test_symbol_table() {
     assert_eq!(symtbl.intern(String::from("loop")), 2);
 }
 
-fn read_str(ps: &mut ParserState) -> ReadResult {
-    let sloc = ps.current_loc();
-    assert!(ps.next() == Some('"'), "Unexpected start of string");
-    let mut res = String::new();
-    let mut mc = ps.next();
-
-    while mc != None && mc != Some('"') && mc != Some('\n') {
-        res.push(mc.unwrap());  // mc != None
-        mc = ps.next();
-    }
-
-    if mc == None || mc == Some('\n') {
-        Err(ReadSexpError { line: ps.line, col: ps.col, kind: ReadSexpErrorKind::UnclosedString })
-    } else {
-        Ok(ps.make_sexp(SexpValue::Str(res), sloc))
-    }
-}
-
-// TODO change to SynSexp
-fn quoted_sexp(s: Sexp, symtbl: &mut SymbolTable) -> Sexp {
-    let mut lst : Vec<Sexp> = Vec::new();
-    lst.push(Sexp::Symbol(symtbl.intern(String::from("quote"))));
-    lst.push(s);
-    Sexp::List(lst)
-}
-
 fn id_symbol_char(c: char) -> bool {
     match c {
         '!' | '$' | '%' | '&' | '*' | '/' | ':' | '<' | '='
@@ -348,144 +323,6 @@ fn id_first_char(c: char) -> bool {
 
 fn id_char(c: char) -> bool {
     c.is_digit(10) || id_first_char(c) || c == '+' || c == '-' || c == '.' || c == '@'
-}
-
-fn read_identifier(ps: &mut ParserState, symtbl: &mut SymbolTable) -> ReadResult {
-    let sloc = ps.current_loc();
-    let mut idstr = String::new();
-    match ps.next() {
-        None => Err(sexp_error_current_location(ps, ReadSexpErrorKind::UnexpectedEOF)),
-        Some(c) => {
-            if !id_first_char(c) {
-                return Err(sexp_error_current_location(ps, ReadSexpErrorKind::UnexpectedChar(c)));
-            }
-
-            let mut ch = c;
-            while id_char(ch) {
-                idstr.push(ch);
-                match ps.next() {
-                    None => break,
-                    Some(c2) => ch = c2
-                }
-            }
-            Ok(ps.make_sexp(SexpValue::Symbol(symtbl.intern(idstr)), sloc))
-        }
-    }
-}
-
-// TODO support for #\space and #\newline
-fn read_char(ps: &mut ParserState, sloc: Loc) -> ReadResult {
-    match ps.next() {
-        None => Err(sexp_error_current_location(ps, ReadSexpErrorKind::UnexpectedEOF)),
-        Some(c) => Ok(ps.make_sexp(SexpValue::Char(c), sloc))
-    }
-}
-
-fn read_vector(ps: &mut ParserState, symtbl: &mut SymbolTable, sloc: Loc) -> ReadResult {
-    let v : Vec<SynSexp> = Vec::new();
-    Ok(ps.make_sexp(SexpValue::Vector(v), sloc))  // TODO implement
-}
-
-fn read_prefix_number_or_error(ps: &mut ParserState, c: char, sloc: Loc) -> ReadResult {
-    Ok(ps.make_sexp(SexpValue::Number(String::from("0")), sloc))  // TODO implement
-}
-
-fn read_hash(ps: &mut ParserState, symtbl: &mut SymbolTable) -> ReadResult {
-    let sloc = ps.current_loc();
-    match ps.next() {
-        None => Err(sexp_error_current_location(ps, ReadSexpErrorKind::UnexpectedEOF)),
-        Some(c) => {
-            if c != '#' {
-                return Err(sexp_error_current_location(ps, ReadSexpErrorKind::ExpectedHash));
-            }
-
-            match ps.next() {
-                None => Err(sexp_error_current_location(ps, ReadSexpErrorKind::UnexpectedEOF)),
-                Some('t') => Ok(ps.make_sexp(SexpValue::Bool(true), sloc)),
-                Some('f') => Ok(ps.make_sexp(SexpValue::Bool(false), sloc)),
-                Some('\\') => read_char(ps, sloc),
-                Some('(') => read_vector(ps, symtbl, sloc),
-                Some(ch) => read_prefix_number_or_error(ps, ch, sloc)
-            }
-        }
-    }
-}
-
-fn read_number(ps: &mut ParserState) -> ReadResult {
-    let sloc = ps.current_loc();
-    let mut nstr = String::new();
-    match ps.next() {
-        None => Err(sexp_error_current_location(ps, ReadSexpErrorKind::UnexpectedEOF)),
-        Some(c) => {
-            let mut ch = c;
-            while ch.is_numeric() || ch == '.' {
-                nstr.push(ch);
-                match ps.next() {
-                    None => break,
-                    Some(c2) => ch = c2
-                }
-            }
-            if ch.is_numeric() || ch == '.' {
-                Ok(ps.make_sexp(SexpValue::Number(nstr), sloc))
-            } else {
-                Err(sexp_error_current_location(ps, ReadSexpErrorKind::UnexpectedChar(ch)))
-            }
-        }
-    }
-}
-
-fn read_quoted(ps: &mut ParserState, symtbl: &mut SymbolTable) -> ReadResult {
-    let sloc = ps.current_loc();
-    read_sexp(ps, symtbl).and_then(|s| {
-        let mut v : Vec<SynSexp> = Vec::new();
-        v.push(SynSexp { start: sloc.clone(), end: sloc.clone(),
-                         val: SexpValue::Symbol(symtbl.intern(String::from("quote"))) });
-        let eloc = s.end.clone();
-        v.push(s);
-        Ok(SynSexp { start: sloc, end: eloc, val: SexpValue::List(v) })
-    })
-}
-
-pub fn read_sexp(ps: &mut ParserState, symtbl: &mut SymbolTable) -> ReadResult {
-    match ps.peek() {
-        //Some('(') => read_list(ps, symtbl),
-        Some('#') => read_hash(ps, symtbl),
-        Some('\'') => read_quoted(ps, symtbl),
-        Some(c) => {
-            if id_first_char(c) {
-                read_identifier(ps, symtbl)
-            } else if c.is_digit(10) {
-                read_number(ps)
-            } else {
-                Err(sexp_error_current_location(ps, ReadSexpErrorKind::UnexpectedChar(c)))
-            }
-        },
-        None => Err(sexp_error_current_location(ps, ReadSexpErrorKind::UnexpectedEOF))
-    }
-}
-
-#[test]
-fn test_read_str() {
-    let mut ps1 = ParserState::new(String::from("\"Alamo hapsbar hammyn\""));
-
-    assert_eq!(read_str(&mut ps1),
-               Ok(SynSexp { start: Loc::zero(),
-                            end: Loc { line: 0, col: 22, pos: 22 },
-                            val: SexpValue::Str(String::from("Alamo hapsbar hammyn")) } ));
-
-    let mut ps2 = ParserState::new(String::from("\"tapioca"));
-
-    assert_eq!(read_str(&mut ps2),
-               Err(ReadSexpError{ line: 0, col: 8, kind: ReadSexpErrorKind::UnclosedString}));
-}
-
-#[test]
-fn test_quoted_sexp() {
-    let mut symtbl = SymbolTable::new();
-    let quote_sym = symtbl.intern(String::from("quote"));
-    let alamo_sym = symtbl.intern(String::from("alamo"));
-    assert_eq!(quoted_sexp(Sexp::Symbol(alamo_sym), &mut symtbl),
-               Sexp::List(vec!(Sexp::Symbol(quote_sym), Sexp::Symbol(alamo_sym))));
 }
 
 #[test]
@@ -539,39 +376,6 @@ fn symbol_from_str(s: &str, st: &mut SymbolTable) -> SexpValue {
 }
 
 #[test]
-fn test_read_id() {
-    let mut ps1 = ParserState::new(String::from("batraqueo"));
-    let mut symtbl = SymbolTable::new();
-
-    assert_eq!(read_identifier(&mut ps1, &mut symtbl),
-               Ok(SynSexp { start: Loc::zero(),
-                            end: Loc { line: 0, col: 9, pos: 9 },
-                            val: symbol_from_str("batraqueo", &mut symtbl) } ));
-}
-
-#[test]
-fn test_read_hash() {
-    let mut ps1 = ParserState::new(String::from("#t #f #\\A"));
-    let mut symtbl = SymbolTable::new();
-
-    //assert_eq!(read_hash(&mut ps1, &mut symtbl), Ok(Sexp::Bool(true)));
-    //ps1.skip_whitespace();
-    //assert_eq!(read_hash(&mut ps1, &mut symtbl), Ok(Sexp::Bool(false)));
-    //ps1.skip_whitespace();
-    //assert_eq!(read_hash(&mut ps1, &mut symtbl), Ok(Sexp::Char('A')));
-}
-
-#[test]
-fn test_read_sexp() {
-    let mut ps1 = ParserState::new(String::from("1234"));
-    let mut symtbl = SymbolTable::new();
-
-    assert_eq!(read_sexp(&mut ps1, &mut symtbl),
-               Ok(SynSexp { start: Loc::zero(), end: Loc { line: 0, col: 4, pos: 4 },
-                            val: SexpValue::Number(String::from("1234")) }));
-}
-
-#[test]
 fn test_tokenizer_1() {
     let mut ps = ParserState::new(String::from("(define abs '(123 #\\a #f))"));
 
@@ -602,5 +406,18 @@ fn test_tokenizer_2() {
     assert_eq!(ps.next_token(), Some(Token::new( Loc::new(0, 17, 17), String::from("cond"))));
     assert_eq!(ps.next_token(), Some(Token::new( Loc::new(0, 21, 21), String::from(")"))));
     assert_eq!(ps.next_token(), Some(Token::new( Loc::new(0, 22, 22), String::from(")"))));
+    assert_eq!(ps.next_token(), None);
+}
+
+#[test]
+fn test_tokenizer_3() {
+    let mut ps = ParserState::new(String::from("'(abet #\\space \"shumaguma ' matalka #\")"));
+
+    assert_eq!(ps.next_token(), Some(Token::new( Loc::zero(), String::from("'") )));
+    assert_eq!(ps.next_token(), Some(Token::new( Loc::new(0, 1, 1), String::from("("))));
+    assert_eq!(ps.next_token(), Some(Token::new( Loc::new(0, 2, 2), String::from("abet"))));
+    assert_eq!(ps.next_token(), Some(Token::new( Loc::new(0, 7, 7), String::from("#\\space"))));
+    assert_eq!(ps.next_token(), Some(Token::new( Loc::new(0, 15, 15), String::from("\"shumaguma ' matalka #\""))));
+    assert_eq!(ps.next_token(), Some(Token::new( Loc::new(0, 38, 38), String::from(")"))));
     assert_eq!(ps.next_token(), None);
 }

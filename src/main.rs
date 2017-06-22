@@ -20,8 +20,9 @@ fn main() {
     let stdin = std::io::stdin();
     stdin.lock().read_line(&mut line).expect("could not read line");
 
-    let mut symtbl = parser::SymbolTable::new();
-    let mut ps = parser::ParserState::new(line);
-    let s = parser::read_sexp(&mut ps, &mut symtbl);
-    println!("{:?}", s);
+    println!("{}", line);
+//    let mut symtbl = parser::SymbolTable::new();
+//    let mut ps = parser::ParserState::new(line);
+//    let s = parser::read_sexp(&mut ps, &mut symtbl);
+//    println!("{:?}", s);
 }
