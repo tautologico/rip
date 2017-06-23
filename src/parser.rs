@@ -20,6 +20,18 @@ impl Loc {
     }
 }
 
+enum TokenValue {
+    LParen,
+    RParen,
+    HashParen,
+    Comma,
+    Quote,
+    Backquote,
+    Number,
+    Str(String),
+    Id(SymbolHandle)
+}
+
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub struct Token {
     start: Loc,
@@ -66,6 +78,23 @@ pub struct ReadSexpError {
     col: usize,
     kind: ReadSexpErrorKind
 }
+
+#[derive(PartialEq, Eq, Hash, Debug)]
+pub enum LexErrorKind {
+    UnclosedString,
+    UnexpectedEOF,
+    UnexpectedChar(char),
+    ExpectedHash
+}
+
+#[derive(PartialEq, Eq, Hash, Debug)]
+pub struct LexError {
+    line: usize,
+    col: usize,
+    kind: LexErrorKind
+}
+
+type LexResult = Result<Token, LexError>;
 
 pub struct ParserState {
     chars: Vec<char>,
