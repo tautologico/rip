@@ -318,9 +318,13 @@ impl Lexer {
             mc = self.buffer.next();
         }
 
-        if !id_char(mc.unwrap()) {
+        if mc != None && !is_delimiter(mc.unwrap()) {
             Err(self.buffer.lexer_error_current_loc(LexErrorKind::UnexpectedChar(c)))
         } else {
+            // if id ended on a delimiter, we should backtrack
+            if mc != None && is_delimiter(mc.unwrap()) {
+                self.buffer.backtrack();
+            }
             Ok(Token::symbol(sloc, self.buffer.current_loc(), symtbl.intern(idstr)))
         }
     }
@@ -411,22 +415,79 @@ mod lexer_test {
 
     #[test]
     fn lexer1() {
-        let mut lexer = Lexer::new(String::from("  456 shaman   #t"));
+        let mut lexer = Lexer::new(String::from("'(456 shaman   #t)"));
         let mut symtbl = SymbolTable::new();
 
         assert_eq!(lexer.next_token(&mut symtbl),
-                   Ok(Token::number(Loc { line: 0, col: 2, pos: 2 },
-                                    Loc { line: 0, col: 5, pos: 5 },
+                   Ok(Token::new(Loc::new(0, 0, 0),
+                                 Loc::new(0, 1, 1),
+                                 TokenValue::Quote)));
+
+        assert_eq!(lexer.next_token(&mut symtbl),
+                   Ok(Token::new(Loc::new(0, 1, 1),
+                                 Loc::new(0, 2, 2),
+                                 TokenValue::LParen)));
+        
+        assert_eq!(lexer.next_token(&mut symtbl),
+                   Ok(Token::number(Loc::new(0, 2, 2),
+                                    Loc::new(0, 5, 5),
                                     456)));
 
         assert_eq!(lexer.next_token(&mut symtbl),
-                   Ok(Token::symbol(Loc { line: 0, col: 6, pos: 6 },
-                                    Loc { line: 0, col: 12, pos: 12 },
+                   Ok(Token::symbol(Loc::new(0, 6, 6),
+                                    Loc::new(0, 12, 12),
                                     symtbl.intern(String::from("shaman")))));
 
         assert_eq!(lexer.next_token(&mut symtbl),
-                   Ok(Token::boolean(Loc { line: 0, col: 15, pos: 15 },
-                                     Loc { line: 0, col: 17, pos: 17 },
+                   Ok(Token::boolean(Loc::new(0, 15, 15),
+                                     Loc::new(0, 17, 17),
                                      true)));
+
+        assert_eq!(lexer.next_token(&mut symtbl),
+                   Ok(Token::new(Loc::new(0, 17, 17),
+                                 Loc::new(0, 18, 18),
+                                 TokenValue::RParen)));
+        
+        assert_eq!(lexer.next_token(&mut symtbl),
+                   Ok(Token { start: Loc::new(0, 18, 18),
+                              end:   Loc::new(0, 18, 18),
+                              value: TokenValue::Eof }));
     }
+
+    #[test]
+    fn lexer2() {
+        let mut lexer = Lexer::new(String::from("(define s \"42 ninjas\")"));
+        let mut symtbl = SymbolTable::new();
+
+        assert_eq!(lexer.next_token(&mut symtbl),
+                   Ok(Token::new(Loc::new(0, 0, 0),
+                                 Loc::new(0, 1, 1),
+                                 TokenValue::LParen)));
+
+        assert_eq!(lexer.next_token(&mut symtbl),
+                   Ok(Token::symbol(Loc::new(0, 1, 1),
+                                    Loc::new(0, 7, 7),
+                                    symtbl.intern(String::from("define")))));
+
+        assert_eq!(lexer.next_token(&mut symtbl),
+                   Ok(Token::symbol(Loc::new(0, 8, 8),
+                                    Loc::new(0, 9, 9),
+                                    symtbl.intern(String::from("s")))));
+
+        assert_eq!(lexer.next_token(&mut symtbl),
+                   Ok(Token::string(Loc::new(0, 10, 10),
+                                    Loc::new(0, 21, 21),
+                                    String::from("42 ninjas"))));
+
+        assert_eq!(lexer.next_token(&mut symtbl),
+                   Ok(Token::new(Loc::new(0, 21, 21),
+                                 Loc::new(0, 22, 22),
+                                 TokenValue::RParen)));
+        
+        assert_eq!(lexer.next_token(&mut symtbl),
+                   Ok(Token { start: Loc::new(0, 22, 22),
+                              end:   Loc::new(0, 22, 22),
+                              value: TokenValue::Eof }));
+    }
+
 }
