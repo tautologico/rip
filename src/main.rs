@@ -1,4 +1,5 @@
 pub mod sexp;
+pub mod num;
 pub mod parser;
 
 use std::io::BufRead;
