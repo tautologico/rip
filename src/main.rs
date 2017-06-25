@@ -2,6 +2,7 @@ pub mod sexp;
 pub mod num;
 pub mod symtbl;
 pub mod lexer;
+pub mod reader;
 pub mod parser;
 
 use std::io::BufRead;

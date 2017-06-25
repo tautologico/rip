@@ -36,9 +36,9 @@ pub enum TokenValue {
 
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub struct Token {
-    start: Loc,
-    end: Loc,
-    value: TokenValue
+    pub start: Loc,
+    pub end: Loc,
+    pub value: TokenValue
 }
 
 impl Token {
@@ -74,9 +74,8 @@ pub enum LexErrorKind {
 
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub struct LexError {
-    line: usize,
-    col: usize,
-    kind: LexErrorKind
+    pub loc: Loc,
+    pub kind: LexErrorKind
 }
 
 type LexResult = Result<Token, LexError>;
@@ -160,7 +159,8 @@ impl Buffer {
     }
 
     fn lexer_error_current_loc(&self, kind: LexErrorKind) -> LexError {
-        LexError { line: self.line, col: self.col, kind: kind }
+        LexError { loc: Loc { line: self.line, col: self.col, pos: self.ix },
+                   kind: kind }
     }
 }
 
@@ -264,7 +264,7 @@ fn id_char(c: char) -> bool {
 }
 
 impl Lexer {
-    fn new(s: String) -> Lexer {
+    pub fn new(s: String) -> Lexer {
         Lexer { buffer: Buffer::new(s) }
     }
 
@@ -377,7 +377,7 @@ impl Lexer {
         Ok(Token { start: sloc.clone(), end: sloc, value: TokenValue::Eof })
     }
 
-    fn next_token(&mut self, symtbl: &mut SymbolTable) -> LexResult {
+    pub fn next_token(&mut self, symtbl: &mut SymbolTable) -> LexResult {
         self.buffer.skip_whitespace();
         match self.buffer.peek() {
             None => self.eof_token(),
@@ -467,12 +467,12 @@ mod lexer_test {
         assert_eq!(lexer.next_token(&mut symtbl),
                    Ok(Token::symbol(Loc::new(0, 1, 1),
                                     Loc::new(0, 7, 7),
-                                    symtbl.intern(String::from("define")))));
+                                    symtbl.intern_str("define"))));
 
         assert_eq!(lexer.next_token(&mut symtbl),
                    Ok(Token::symbol(Loc::new(0, 8, 8),
                                     Loc::new(0, 9, 9),
-                                    symtbl.intern(String::from("s")))));
+                                    symtbl.intern_str("s"))));
 
         assert_eq!(lexer.next_token(&mut symtbl),
                    Ok(Token::string(Loc::new(0, 10, 10),

@@ -1,5 +1,5 @@
 
-pub type SymbolHandle = usize;
+use symtbl::SymbolHandle;
 
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub enum Sexp {
