@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use sexp::Sexp;
-use sexp::SymbolHandle;
+use symtbl::SymbolHandle;
 
 use num::Num;
 

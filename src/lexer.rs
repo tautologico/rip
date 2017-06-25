@@ -31,6 +31,7 @@ pub enum TokenValue {
     Bool(bool),
     Number(Num),
     Str(String),
+    // TODO char
     Symbol(SymbolHandle)
 }
 
@@ -69,6 +70,7 @@ pub enum LexErrorKind {
     UnexpectedEOF,
     UnexpectedChar(char),
     NotImplemented,
+    WrongNumberFormat,
     ExpectedHash
 }
 
@@ -309,7 +311,6 @@ impl Lexer {
 
     fn read_id(&mut self, c: char, sloc: Loc, symtbl: &mut SymbolTable) -> LexResult {
         let mut idstr = String::new();
-
         idstr.push(c);
 
         let mut mc = self.buffer.next();
@@ -349,14 +350,13 @@ impl Lexer {
         self.read_upto_delimiter(&mut res);
         match res.parse::<i64>() {
             Ok(i) => Ok(Token::number(sloc, self.buffer.current_loc(), i)),
-            _ =>     Err(self.buffer.lexer_error_current_loc(LexErrorKind::UnexpectedEOF))
+            _ =>     Err(self.buffer.lexer_error_current_loc(LexErrorKind::WrongNumberFormat))
         }
     }
 
     fn number_or_id_token(&mut self, symtbl: &mut SymbolTable) -> LexResult {
         let sloc = self.buffer.current_loc();
         let mut res = String::new();
-        //self.read_upto_delimiter(&mut res);
 
         match self.buffer.next() {
             None => panic!("number_or_id_token called at EOF"),
@@ -402,9 +402,12 @@ impl Lexer {
                     '#' => self.read_hash_token(),
                     _ => self.number_or_id_token(symtbl)
                 }
-
             }
         }
+    }
+
+    pub fn current_loc(&self) -> Loc {
+        self.buffer.current_loc()
     }
 }
 
@@ -414,7 +417,7 @@ mod lexer_test {
     use super::*;
 
     #[test]
-    fn lexer1() {
+    fn list_num_sym_bool() {
         let mut lexer = Lexer::new(String::from("'(456 shaman   #t)"));
         let mut symtbl = SymbolTable::new();
 
@@ -455,7 +458,7 @@ mod lexer_test {
     }
 
     #[test]
-    fn lexer2() {
+    fn list2() {
         let mut lexer = Lexer::new(String::from("(define s \"42 ninjas\")"));
         let mut symtbl = SymbolTable::new();
 
@@ -490,4 +493,13 @@ mod lexer_test {
                               value: TokenValue::Eof }));
     }
 
+    #[test]
+    fn id_error() {
+        let mut lexer = Lexer::new(String::from("5ferror"));
+        let mut symtbl = SymbolTable::new();
+
+        assert_eq!(lexer.next_token(&mut symtbl),
+                   Err(LexError { loc: Loc::new(0, 7, 7),
+                                  kind: LexErrorKind::WrongNumberFormat }));
+    }
 }

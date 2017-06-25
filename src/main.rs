@@ -25,8 +25,8 @@ fn main() {
     stdin.lock().read_line(&mut line).expect("could not read line");
 
     println!("{}", line);
-//    let mut symtbl = parser::SymbolTable::new();
-//    let mut ps = parser::ParserState::new(line);
-//    let s = parser::read_sexp(&mut ps, &mut symtbl);
-//    println!("{:?}", s);
+    let mut symtbl = symtbl::SymbolTable::new();
+    let mut r = reader::Reader::new(line);
+    let s = r.read_sexp(&mut symtbl);
+    println!("{:?}", s);
 }
