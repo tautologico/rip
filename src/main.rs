@@ -7,15 +7,6 @@ pub mod reader;
 use std::io::BufRead;
 use std::io::Write;
 
-pub struct SchemeObject {
-
-}
-
-pub enum SchemeVal {
-    Symbol(String),
-    Number(i64)
-}
-
 fn main() {
     print!("sexp: ");
     std::io::stdout().flush().unwrap();

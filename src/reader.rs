@@ -40,6 +40,7 @@ pub struct Reader {
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum ReadErrorKind {
+    Eof,
     UnclosedList,
     NotImplemented,
     UnexpectedRParen,
@@ -85,6 +86,7 @@ impl Reader {
 
     fn process_token(&mut self, symtbl: &mut SymbolTable, tok: Token) -> ReadResult {
         match tok.value {
+            TokenValue::Eof => Err(ReadError { loc: self.lexer.current_loc(), kind: ReadErrorKind::Eof }),
             TokenValue::Number(n) => Ok(Sexp::new(tok.start, tok.end, SexpValue::Number(n))),
             TokenValue::Str(s) => Ok(Sexp::new(tok.start, tok.end, SexpValue::Str(s))),
             TokenValue::Bool(b) => Ok(Sexp::new(tok.start, tok.end, SexpValue::Bool(b))),
@@ -94,11 +96,11 @@ impl Reader {
             TokenValue::Backquote => self.wrap_sexp(symtbl, tok.start, tok.end, "quasiquote"),
             TokenValue::LParen => self.read_list(symtbl, tok.start),
             TokenValue::RParen => Err(ReadError { loc: self.lexer.current_loc(), kind: ReadErrorKind::UnexpectedRParen }),
-            _ => Err(ReadError { loc: self.lexer.current_loc(), kind: ReadErrorKind::NotImplemented })
+            TokenValue::HashParen => self.read_vector(symtbl, tok.start),
         }
     }
 
-    fn read_list(&mut self, symtbl: &mut SymbolTable, sloc: Loc) -> ReadResult {
+    fn read_sexps(&mut self, symtbl: &mut SymbolTable) -> Result<Vec<Sexp>, ReadError> {
         let mut done = false;
         let mut v : Vec<Sexp> = Vec::new();
 
@@ -116,8 +118,8 @@ impl Reader {
                 _ => {
                     let sexp_err = self.process_token(symtbl, tok);
 
-                    if let Err(_) = sexp_err {
-                        return sexp_err;
+                    if let Err(e) = sexp_err {
+                        return Err(e);
                     }
 
                     v.push(sexp_err.unwrap());
@@ -125,6 +127,18 @@ impl Reader {
             }
         }
 
-        Ok(Sexp { start: sloc, end: self.lexer.current_loc(), value: SexpValue::List(v) })
+        Ok(v)
+    }
+
+    fn read_list(&mut self, symtbl: &mut SymbolTable, sloc: Loc) -> ReadResult {
+        self.read_sexps(symtbl)
+            .and_then(|v| Ok(Sexp::new(sloc, self.lexer.current_loc(),
+                                       SexpValue::List(v))))
+    }
+
+    fn read_vector(&mut self, symtbl: &mut SymbolTable, sloc: Loc) -> ReadResult {
+        self.read_sexps(symtbl)
+            .and_then(|v| Ok(Sexp::new(sloc, self.lexer.current_loc(),
+                                       SexpValue::Vector(v))))
     }
 }
