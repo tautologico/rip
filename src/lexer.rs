@@ -252,7 +252,7 @@ fn is_delimiter(c: char) -> bool {
 fn id_symbol_char(c: char) -> bool {
     match c {
         '!' | '$' | '%' | '&' | '*' | '/' | ':' | '<' | '='
-        | '>' | '?' | '^' | '_' | '~' => true,
+        | '+' | '-' | '>' | '?' | '^' | '_' | '~' => true,
         _ => false
     }
 }
@@ -262,7 +262,7 @@ fn id_first_char(c: char) -> bool {
 }
 
 fn id_char(c: char) -> bool {
-    c.is_digit(10) || id_first_char(c) || c == '+' || c == '-' || c == '.' || c == '@'
+    c.is_digit(10) || id_first_char(c) || c == '.' || c == '@'
 }
 
 impl Lexer {
@@ -290,13 +290,13 @@ impl Lexer {
         }
     }
 
-    fn read_hash_number(&mut self) -> LexResult {
+    fn read_hash_number(&mut self, _: char) -> LexResult {
         Err(self.buffer.lexer_error_current_loc(LexErrorKind::NotImplemented))
     }
 
     fn read_hash_token(&mut self) -> LexResult {
         let sloc = self.buffer.current_loc();
-        let mut mc = self.buffer.next();
+        let mc = self.buffer.next();
 
         assert!( mc == Some('#'), "read_hash_token: expected #" );
 
@@ -305,7 +305,7 @@ impl Lexer {
             Some('(') => Ok(Token{ start: sloc, end: self.buffer.current_loc(), value: TokenValue::HashParen }),
             Some('t') => Ok(Token::boolean(sloc, self.buffer.current_loc(), true)),
             Some('f') => Ok(Token::boolean(sloc, self.buffer.current_loc(), false)),
-            Some(c) => self.read_hash_number()
+            Some(c) => self.read_hash_number(c)
         }
     }
 
@@ -356,7 +356,6 @@ impl Lexer {
 
     fn number_or_id_token(&mut self, symtbl: &mut SymbolTable) -> LexResult {
         let sloc = self.buffer.current_loc();
-        let mut res = String::new();
 
         match self.buffer.next() {
             None => panic!("number_or_id_token called at EOF"),
