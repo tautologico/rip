@@ -3,6 +3,7 @@ pub mod num;
 pub mod symtbl;
 pub mod lexer;
 pub mod reader;
+pub mod mem;
 
 use std::io::BufRead;
 use std::io::Write;
