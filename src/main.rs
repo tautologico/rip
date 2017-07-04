@@ -20,4 +20,10 @@ fn main() {
     let mut r = reader::Reader::new(line);
     let s = r.read_sexp(&mut symtbl);
     println!("{:?}", s);
+
+    if let Ok(sxp) = s {
+        print!("sexp: ");
+        sxp.print(&symtbl);
+        println!("");
+    }
 }

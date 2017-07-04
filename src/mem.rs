@@ -68,7 +68,6 @@ impl Memory {
         println!("GC...");
     }
     
-    // TODO how to represent null link and depleted free list? Link = Option<usize>
     pub fn alloc(&mut self, val: CellValue) -> Link {
         match self.free {
             None => {

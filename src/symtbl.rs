@@ -2,14 +2,21 @@ use std::collections::HashMap;
 
 pub type SymbolHandle = usize;
 
+struct SymbolInfo {
+    name: String,
+    handle: SymbolHandle
+}
+
 pub struct SymbolTable {
     symbols: HashMap<String, SymbolHandle>,
+    info: Vec<SymbolInfo>,
     next: SymbolHandle
 }
 
 impl SymbolTable {
     pub fn new() -> SymbolTable {
-        SymbolTable { symbols: HashMap::new(), next: 0 }
+        SymbolTable { symbols: HashMap::new(), info: Vec::new(),
+                      next: 0 }
     }
 
     pub fn intern(&mut self, s: String) -> SymbolHandle {
@@ -17,6 +24,7 @@ impl SymbolTable {
             Some(&h) => h,
             None => {
                 let res = self.next;
+                self.info.push(SymbolInfo { name: s.clone(), handle: res });
                 self.symbols.insert(s, res);
                 self.next += 1;
                 res
@@ -26,6 +34,21 @@ impl SymbolTable {
 
     pub fn intern_str(&mut self, s: &str) -> SymbolHandle {
         self.intern(String::from(s))
+    }
+
+    // TODO return &str
+    pub fn symbol_name(&self, h: SymbolHandle) -> Option<String> {
+        if self.next <= h {
+            None
+        } else {
+            Some(self.info[h].name.clone())
+        }
+    }
+
+    pub fn print_symbol(&self, h: SymbolHandle) {
+        if h < self.next {
+            print!("{}", self.info[h].name);
+        }
     }
 }
 

@@ -4,6 +4,7 @@ use num::Num;
 use symtbl::SymbolHandle;
 
 pub enum SchemeValue {
+    Nil,
     Number(Num),
     Boolean(bool),
     Vector(Vec),
@@ -13,5 +14,3 @@ pub enum SchemeValue {
     Symbol(SymbolHandle),
     Closure
 }
-    
-    

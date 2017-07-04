@@ -5,3 +5,11 @@ pub enum Num {
     Exact(i64)    // TODO BigRational
 }
 
+impl Num {
+    pub fn print(&self) {
+        match self {
+            &Num::Inexact(i) => print!("{}", i),
+            &Num::Exact(e) => print!("{}", e)
+        }
+    }
+}

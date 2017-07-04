@@ -32,6 +32,32 @@ impl Sexp {
     fn new(start: Loc, end: Loc, val: SexpValue) -> Sexp {
         Sexp { start: start, end: end, value: val }
     }
+
+    pub fn print(&self, symtbl: &SymbolTable) {
+        match self.value {
+            SexpValue::Number(ref n) => n.print(),
+            SexpValue::Str(ref s) => print!("\"{}\"", s),
+            SexpValue::Symbol(sh) => symtbl.print_symbol(sh),
+            SexpValue::Bool(b) => if b { print!("#t"); } else { print!("#f"); },
+            SexpValue::Char(c) => print!("#\\{}", c),
+            SexpValue::Vector(ref v) => {
+                print!("#(");
+                for s in v.iter() {
+                    s.print(symtbl);
+                    print!(" ");
+                }
+                print!(")");
+            },
+            SexpValue::List(ref l) => {
+                print!("(");
+                for s in l.iter() {
+                    s.print(symtbl);
+                    print!(" ");
+                }
+                print!(")");
+            }
+        }
+    }
 }
 
 pub struct Reader {
