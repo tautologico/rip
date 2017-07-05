@@ -75,16 +75,17 @@ impl Sexp {
 
 impl<'a> SexpFormatter<'a> {
     fn fmt_vector(&self, f: &mut fmt::Formatter, v: &Vec<Sexp>) -> fmt::Result {
-        write!(f, "(");
-        let mut it = v.iter();
-        if let Some(s) = it.next() {
-            self.fmt_sexp(f, s);
-        }
-        for s in it {
-            write!(f, " ");
-            self.fmt_sexp(f, s);
-        }
-        write!(f, ")")
+        write!(f, "(").and_then(|_| {
+            let mut it = v.iter();
+            if let Some(s) = it.next() {
+                self.fmt_sexp(f, s).expect("fmt_vector");
+            }
+            for s in it {
+                write!(f, " ").expect("fmt_vector");
+                self.fmt_sexp(f, s).expect("fmt_vector");
+            }
+            write!(f, ")")
+        })
     }
 
     fn fmt_sexp(&self, f: &mut fmt::Formatter, s: &Sexp) -> fmt::Result {
@@ -94,10 +95,7 @@ impl<'a> SexpFormatter<'a> {
             SexpValue::Symbol(sh) => self.symtbl.display_symbol(sh, f),
             SexpValue::Bool(b) => if b { write!(f, "#t") } else { write!(f, "#f") },
             SexpValue::Char(c) => write!(f, "#\\{}", c),
-            SexpValue::Vector(ref v) => {
-                write!(f, "#");
-                self.fmt_vector(f, v)
-            },
+            SexpValue::Vector(ref v) => write!(f, "#").and_then(|_| self.fmt_vector(f, v) ),
             SexpValue::List(ref l) => self.fmt_vector(f, l)
         }
     }
