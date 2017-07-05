@@ -27,6 +27,7 @@ pub fn repl() {
 
         if let Ok(sxp) = ms {
             println!("{}", sxp.formatter(&symtbl));
+            println!("first: {:?}", sxp.first());
         } else {
             println!("{:?}", ms);
         }

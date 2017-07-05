@@ -71,6 +71,38 @@ impl Sexp {
     pub fn formatter<'a>(&'a self, symtbl: &'a SymbolTable) -> SexpFormatter<'a> {
         SexpFormatter { s: self, symtbl: symtbl }
     }
+
+    // get a reference to the first sexp in a list or vector
+    pub fn first(&self) -> Option<&Sexp> {
+        match self.value {
+            SexpValue::List(ref l) => {
+                if l.len() >= 1 {
+                    Some(&l[0])
+                } else {
+                    None
+                }                    
+            },
+            SexpValue::Vector(ref v) => {
+                if v.len() >= 1 {
+                    Some(&v[0])
+                } else {
+                    None
+                }
+            },
+            _ => None
+        }
+    }
+}
+
+#[test]
+fn test_first() {
+    let mut symtbl = SymbolTable::new();
+    let s = Reader::new(String::from("(define a 42)")).read_sexp(&mut symtbl).unwrap();
+
+    assert_eq!(s.first().unwrap().value, SexpValue::Symbol(symtbl.intern_str("define")));
+
+    let s2 = Reader::new(String::from("alpaca")).read_sexp(&mut symtbl).unwrap();
+    assert_eq!(s2.first(), None);
 }
 
 impl<'a> SexpFormatter<'a> {

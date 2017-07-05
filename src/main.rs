@@ -6,9 +6,6 @@ pub mod reader;
 pub mod mem;
 pub mod repl;
 
-use std::io::BufRead;
-use std::io::Write;
-
 fn main() {
     repl::repl();
 }
