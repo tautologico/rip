@@ -26,6 +26,8 @@ pub enum TokenValue {
     RParen,
     HashParen,
     Comma,
+    // TODO ,@
+    // TODO dot
     Quote,
     Backquote,
     Bool(bool),

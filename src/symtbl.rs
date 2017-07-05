@@ -1,3 +1,4 @@
+use std::fmt;
 use std::collections::HashMap;
 
 pub type SymbolHandle = usize;
@@ -48,6 +49,14 @@ impl SymbolTable {
     pub fn print_symbol(&self, h: SymbolHandle) {
         if h < self.next {
             print!("{}", self.info[h].name);
+        }
+    }
+
+    pub fn display_symbol(&self, h: SymbolHandle, f: &mut fmt::Formatter) -> fmt::Result {
+        if h < self.next {
+            write!(f, "{}", self.info[h].name)
+        } else {
+            Ok(())
         }
     }
 }

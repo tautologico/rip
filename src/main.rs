@@ -15,7 +15,6 @@ fn main() {
     let stdin = std::io::stdin();
     stdin.lock().read_line(&mut line).expect("could not read line");
 
-    println!("{}", line);
     let mut symtbl = symtbl::SymbolTable::new();
     let mut r = reader::Reader::new(line);
     let s = r.read_sexp(&mut symtbl);
@@ -25,5 +24,7 @@ fn main() {
         print!("sexp: ");
         sxp.print(&symtbl);
         println!("");
+
+        println!("sexp: {}", sxp.formatter(&symtbl));
     }
 }

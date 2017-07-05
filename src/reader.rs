@@ -10,6 +10,8 @@ use num::Num;
 use symtbl::SymbolTable;
 use symtbl::SymbolHandle;
 
+use std::fmt;
+
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub enum SexpValue {
     Number(Num),
@@ -28,6 +30,11 @@ pub struct Sexp {
     value: SexpValue
 }
 
+pub struct SexpFormatter<'a> {
+    s: &'a Sexp,
+    symtbl: &'a SymbolTable
+}
+
 impl Sexp {
     fn new(start: Loc, end: Loc, val: SexpValue) -> Sexp {
         Sexp { start: start, end: end, value: val }
@@ -41,22 +48,89 @@ impl Sexp {
             SexpValue::Bool(b) => if b { print!("#t"); } else { print!("#f"); },
             SexpValue::Char(c) => print!("#\\{}", c),
             SexpValue::Vector(ref v) => {
-                print!("#(");
-                for s in v.iter() {
-                    s.print(symtbl);
-                    print!(" ");
-                }
-                print!(")");
+                print!("#");
+                self.print_vec(symtbl, v);
             },
-            SexpValue::List(ref l) => {
-                print!("(");
-                for s in l.iter() {
-                    s.print(symtbl);
-                    print!(" ");
-                }
-                print!(")");
-            }
+            SexpValue::List(ref l) => self.print_vec(symtbl, l)
         }
+    }
+
+    fn print_vec(&self, symtbl: &SymbolTable, v: &Vec<Sexp>) {
+        print!("(");
+        let mut it = v.iter();
+        if let Some(s) = it.next() {
+            s.print(symtbl);
+        }
+        for s in it {
+            print!(" ");
+            s.print(symtbl);
+        }
+        print!(")");
+    }
+
+    pub fn formatter<'a>(&'a self, symtbl: &'a SymbolTable) -> SexpFormatter<'a> {
+        SexpFormatter { s: self, symtbl: symtbl }
+    }
+}
+
+impl<'a> SexpFormatter<'a> {
+    fn fmt_vector(&self, f: &mut fmt::Formatter, v: &Vec<Sexp>) -> fmt::Result {
+        write!(f, "(");
+        let mut it = v.iter();
+        if let Some(s) = it.next() {
+            write!(f, "{}", s.formatter(self.symtbl));
+        }
+        for s in it {
+            write!(f, " ");
+            write!(f, "{}", s.formatter(self.symtbl));
+        }
+        write!(f, ")")
+    }
+
+    fn fmt_vector2(&self, f: &mut fmt::Formatter, v: &Vec<Sexp>) -> fmt::Result {
+        write!(f, "(");
+        let mut it = v.iter();
+        if let Some(s) = it.next() {
+            self.fmt_sexp(f, s);
+        }
+        for s in it {
+            write!(f, " ");
+            self.fmt_sexp(f, s);
+        }
+        write!(f, ")")
+    }
+
+    fn fmt_sexp(&self, f: &mut fmt::Formatter, s: &Sexp) -> fmt::Result {
+        match s.value {
+            SexpValue::Number(ref n) => write!(f, "{}", n),
+            SexpValue::Str(ref s) => write!(f, "\"{}\"", s),
+            SexpValue::Symbol(sh) => self.symtbl.display_symbol(sh, f),
+            SexpValue::Bool(b) => if b { write!(f, "#t") } else { write!(f, "#f") },
+            SexpValue::Char(c) => write!(f, "#\\{}", c),
+            SexpValue::Vector(ref v) => {
+                write!(f, "#");
+                self.fmt_vector2(f, v)
+            },
+            SexpValue::List(ref l) => self.fmt_vector2(f, l)
+        }
+    }
+}
+
+impl<'a> fmt::Display for SexpFormatter<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // match self.s.value {
+        //     SexpValue::Number(ref n) => write!(f, "{}", n),
+        //     SexpValue::Str(ref s) => write!(f, "\"{}\"", s),
+        //     SexpValue::Symbol(sh) => self.symtbl.display_symbol(sh, f),
+        //     SexpValue::Bool(b) => if b { write!(f, "#t") } else { write!(f, "#f") },
+        //     SexpValue::Char(c) => write!(f, "#\\{}", c),
+        //     SexpValue::Vector(ref v) => {
+        //         write!(f, "#");
+        //         self.fmt_vector(f, v)
+        //     },
+        //     SexpValue::List(ref l) => self.fmt_vector(f, l)
+        // }
+        self.fmt_sexp(f, self.s)
     }
 }
 
@@ -95,14 +169,14 @@ impl Reader {
     fn wrap_sexp(&mut self, symtbl: &mut SymbolTable,
                  sloc: Loc, eloc: Loc, s: &str) -> ReadResult {
         self.read_sexp(symtbl).and_then(|inner| {
-            let mut v : Vec<Sexp> = Vec::new(); 
+            let mut v : Vec<Sexp> = Vec::new();
             v.push(Sexp::new(sloc.clone(), eloc, SexpValue::Symbol(symtbl.intern_str(s))));
             let eqloc = inner.end.clone();
             v.push(inner);
             Ok(Sexp::new(sloc, eqloc, SexpValue::List(v)))
         })
     }
-    
+
     pub fn read_sexp(&mut self, symtbl: &mut SymbolTable) -> ReadResult {
         match self.lexer.next_token(symtbl) {
             Err(lerr) => Err(ReadError::from_lexer_error(lerr)),
