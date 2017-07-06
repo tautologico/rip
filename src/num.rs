@@ -1,6 +1,6 @@
 use std::fmt;
 
-#[derive(PartialEq, Eq, Hash, Debug)]
+#[derive(PartialEq, Eq, Hash, Debug, Clone)]
 pub enum Num {
     Inexact(i64), // TODO floating point
     Exact(i64)    // TODO BigRational
