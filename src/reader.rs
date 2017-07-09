@@ -25,9 +25,9 @@ pub enum SexpValue {
 
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub struct Sexp {
-    start: Loc,
-    end: Loc,
-    value: SexpValue
+    pub start: Loc,
+    pub end: Loc,
+    pub value: SexpValue
 }
 
 pub struct SexpFormatter<'a> {

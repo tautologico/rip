@@ -3,15 +3,18 @@
 use std::collections::HashMap;
 
 use symtbl::SymbolHandle;
+use symtbl::SymbolTable;
 
 use reader::Sexp;
 use reader::SexpValue;
 
+use mem::Link;
 use mem::Cell;
 use mem::CellValue;
+use mem::Memory;
 
 struct Env {
-    bindings: HashMap<SymbolHandle, mem::Link>
+    bindings: HashMap<SymbolHandle, Link>
 }
 
 impl Env {
@@ -20,32 +23,34 @@ impl Env {
     }
 }
 
-struct State {
+pub struct State {
     mem: Memory,
     global_env: Env
 }
 
 impl State {
     pub fn new(memsize: usize) -> State {
-        State { mem: Memory::new(memsize), global_env: Env::empty() }
+        State { mem: Memory::initialize(memsize), global_env: Env::empty() }
     }
 }
 
-enum EvalErrorKind {
-    UnboundVariable
+pub enum EvalErrorKind {
+    UnboundVariable,
+    NotImplemented
 }
 
-enum EvalResult {
+pub enum EvalResult {
     Void,
-    Value(mem::Link),
+    Value(Link),
     Error(EvalErrorKind)
 }
 
-fn value(l: mem::Link) -> EvalResult {
+fn value(l: Link) -> EvalResult {
     EvalResult::Value(l)
 }
 
 fn sexp_to_cell_value(s: &Sexp, symtbl: &SymbolTable, state: &mut State) -> CellValue {
+    CellValue::Nil
 }
 
 pub fn eval(s: &Sexp, symtbl: &SymbolTable, state: &mut State) -> EvalResult {

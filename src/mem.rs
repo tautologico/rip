@@ -4,9 +4,9 @@ use num::Num;
 
 use symtbl::SymbolHandle;
 
-type Link = Option<usize>;
+pub type Link = Option<usize>;
 
-enum CellValue {
+pub enum CellValue {
     Empty(Link),    // an empty cell links to other empty cells (free list)
     Nil,
     Number(Num),
@@ -30,7 +30,7 @@ pub struct Cons {
     cdr: Link
 }
 
-struct Memory {
+pub struct Memory {
     cells: Vec<Cell>,
     free: Link        // head of free list
 }

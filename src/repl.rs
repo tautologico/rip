@@ -7,11 +7,13 @@ use std::io::Write;
 use reader::Reader;
 use symtbl::SymbolTable;
 
+use eval::State;
 
 pub fn repl() {
     let mut done = false;
 
     let mut symtbl = SymbolTable::new();
+    let mut state = State::new(1000);
     
     while !done {
         print!("> ");
