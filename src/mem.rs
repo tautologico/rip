@@ -5,6 +5,7 @@ use num::Num;
 use symtbl::SymbolHandle;
 
 pub type Link = Option<usize>;
+type RawLink = usize;
 
 pub enum CellValue {
     Empty(Link),    // an empty cell links to other empty cells (free list)
@@ -13,7 +14,7 @@ pub enum CellValue {
     Boolean(bool),
     Str(String),
     Cons(Cons),
-    Vector(Vec<CellValue>),
+    Vector(Vec<RawLink>),  // Vector(Vec<CellValue>),
     Char(char),
     Symbol(SymbolHandle),
     Closure
@@ -32,13 +33,16 @@ pub struct Cons {
 
 pub struct Memory {
     cells: Vec<Cell>,
+    available: usize,
     free: Link        // head of free list
 }
 
 
 impl Memory {
     pub fn initialize(size: usize) -> Memory {
-        let mut res = Memory { cells: Vec::with_capacity(size), free: Some(0) };
+        let mut res = Memory { cells: Vec::with_capacity(size),
+                               available: size,
+                               free: Some(0) };
 
         // initialize free cells and the free list
         for i in 0..size-1 {
@@ -51,15 +55,20 @@ impl Memory {
         res
     }
 
+    pub fn available(&self) -> usize {
+        self.available
+    }
+
     fn alloc_cell(&mut self, ix: usize, val: CellValue) -> Link {
         let mut c = &mut self.cells[ix];
-        
+
         if let CellValue::Empty(p) = c.value {
             self.free = p;
+            self.available -=1;
         } else {
             panic!("Cell on free list was not empty");
         }
-        
+
         c.value = val;
         Some(ix)
     }
@@ -67,7 +76,7 @@ impl Memory {
     fn collect_garbage(&mut self) {
         println!("GC...");
     }
-    
+
     pub fn alloc(&mut self, val: CellValue) -> Link {
         match self.free {
             None => {
@@ -90,9 +99,29 @@ impl Memory {
     //     lnk.and_then(|ix| Some(&mut self.cells[ix]))
     // }
 
+    pub fn vector_ref(&self, lnk: RawLink) -> &Cell {
+        &self.cells[lnk]
+    }
+
     pub fn set_cell(&mut self, lnk: Link, c: Cell) {
         if let Some(ix) = lnk {
             self.cells[ix] = c;
         }
+    }
+
+    pub fn alloc_vec(&mut self, vals: Vec<CellValue>) -> CellValue {
+        if vals.len() > self.available {
+            self.collect_garbage();
+            if vals.len() > self.available {
+                panic!("No memory available for vector of size {}", vals.len())
+            }
+        }
+
+        let mut res : Vec<RawLink> = Vec::new();
+        for val in vals {
+            let link = self.alloc(val);
+            res.push(link.unwrap());  // alloc always returns a valid link (or doesn't return)
+        }
+        CellValue::Vector(res)
     }
 }

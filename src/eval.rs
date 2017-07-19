@@ -49,9 +49,17 @@ fn value(l: Link) -> EvalResult {
     EvalResult::Value(l)
 }
 
-fn sexp_to_cell_value(s: &Sexp, symtbl: &SymbolTable, state: &mut State) -> CellValue {
-    CellValue::Nil
-}
+// fn sexp_to_cell_value(s: &Sexp, symtbl: &SymbolTable, state: &mut State) -> CellValue {
+//     match s.value {
+//         SexpValue::Bool(b) => value(state.mem.alloc(CellValue::Boolean(b))),
+//         SexpValue::Symbol(h) => value(state.mem.alloc(CellValue::Symbol(h))),
+//         SexpValue::Number(ref n) => value(state.mem.alloc(CellValue::Number(n.clone()))),
+//         SexpValue::Str(ref s) => value(state.mem.alloc(CellValue::Str(s.clone()))),
+//         SexpValue::Char(c) => value(state.mem.alloc(CellValue::Char(c))),
+//         SexpValue::Vector(ref v) => value(state.mem.alloc(CellValue::Vector(v.map(|s| sexp_to_cell_value(s, symtbl, state))))),
+//         SexpValue::List(ref l) => CellValue::Nil
+//     }
+// }
 
 pub fn eval(s: &Sexp, symtbl: &SymbolTable, state: &mut State) -> EvalResult {
     match s.value {
@@ -62,4 +70,9 @@ pub fn eval(s: &Sexp, symtbl: &SymbolTable, state: &mut State) -> EvalResult {
         SexpValue::Char(c) => value(state.mem.alloc(CellValue::Char(c))),
         _ => EvalResult::Void
     }
+}
+
+// TODO eval sexp s as a quoted sexp
+fn eval_quoted(s: &Sexp, symtbl: &SymbolTable, state: &State) -> Link {
+    Some(0)
 }
