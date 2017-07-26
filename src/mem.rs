@@ -5,7 +5,7 @@ use num::Num;
 use symtbl::SymbolHandle;
 
 pub type Link = Option<usize>;
-type RawLink = usize;
+pub type RawLink = usize;
 
 pub enum CellValue {
     Empty(Link),    // an empty cell links to other empty cells (free list)
@@ -18,6 +18,12 @@ pub enum CellValue {
     Char(char),
     Symbol(SymbolHandle),
     Closure
+}
+
+impl CellValue {
+    fn cons(head: Link, tail: Link) -> CellValue {
+        CellValue::Cons(Cons { car: head, cdr: tail })
+    }
 }
 
 // A memory cell
@@ -37,15 +43,19 @@ pub struct Memory {
     free: Link        // head of free list
 }
 
+pub const NIL : Link = Some(0);
 
 impl Memory {
     pub fn initialize(size: usize) -> Memory {
         let mut res = Memory { cells: Vec::with_capacity(size),
                                available: size,
-                               free: Some(0) };
+                               free: Some(1) };
+
+        // push the Nil cell
+        res.cells.push(Cell { value: CellValue::Nil, mark: false });
 
         // initialize free cells and the free list
-        for i in 0..size-1 {
+        for i in 1..size-1 {
             res.cells.push(Cell { value: CellValue::Empty(Some(i+1)), mark: false });
         }
 
@@ -123,5 +133,19 @@ impl Memory {
             res.push(link.unwrap());  // alloc always returns a valid link (or doesn't return)
         }
         CellValue::Vector(res)
+    }
+
+    pub fn singleton_list(&mut self, val: CellValue) -> Link {
+        let vallink = self.alloc(val);
+        self.alloc(CellValue::cons(vallink, NIL))
+    }
+
+    pub fn cons_val(&mut self, head: CellValue, tail: Link) -> Link {
+        let headlnk = self.alloc(head);
+        self.alloc(CellValue::cons(headlnk, tail))
+    }
+
+    pub fn cons(&mut self, head: Link, tail: Link) -> Link {
+        self.alloc(CellValue::cons(head, tail))
     }
 }
