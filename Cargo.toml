@@ -1,5 +1,5 @@
 [package]
-name = "r5rs"
+name = "rip"
 version = "0.1.0"
 authors = ["Andrei Formiga <archimedes_siracusa@hotmail.com>"]
 
